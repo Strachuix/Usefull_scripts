@@ -1,1 +1,6 @@
+# Ignore all files in the pass_zips directory
 /pass_zips/*
+# But do not ignore the directory itself
+!/pass_zips/
+# Ignore file lista.txt
+/lista.txt
