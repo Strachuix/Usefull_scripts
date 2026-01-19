@@ -53,6 +53,12 @@ if [ ! -f "$INPUT_FILE" ]; then
     exit 1
 fi
 
+# Konwersja CRLF do LF (Windows to Unix) - kompatybilne rozwiązanie
+tr -d '\r' < "$INPUT_FILE" > "${INPUT_FILE}.tmp" 2>/dev/null && mv "${INPUT_FILE}.tmp" "$INPUT_FILE" 2>/dev/null || true
+
+# Dodaj nową linię na końcu pliku jeśli jej brak
+[ -n "$(tail -c 1 "$INPUT_FILE")" ] && echo >> "$INPUT_FILE"
+
 # Iteracja po każdym wierszu pliku
 while read -r haslo_maila nazwa_usera; do
     # Pomiń puste linie

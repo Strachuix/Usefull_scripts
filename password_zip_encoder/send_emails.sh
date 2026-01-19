@@ -1,16 +1,59 @@
 #!/bin/bash
 
-# --- KONFIGURACJA EMAIL'A ---
-FROM_EMAIL="spokropek@pujarex.pl"
-FROM_PASSWORD="TUTAJ_WSTAW_SWOJE_HASLO"  # ⚠️ ZMIEŃ NA SWOJE HASŁO
-SMTP_SERVER="smtp.ogicom.pl"
-SMTP_PORT="587"
+# --- TRYB DEBUG ---
+DEBUG=1  # Zmień na 1 aby włączyć debugowanie i pełny log
+DEBUG_FILE="send_emails_debug.log"
+# ---
+
+# --- KONFIGURACJA WIADOMOŚCI ---
+SUBJECT="Dane dostępowe"
+BODY="Example text"
 # ----------------------------
 
-INPUT_FILE="lista.txt"          # Plik z listą maili
-ATTACHMENTS_DIR="pass_zips"     # Folder z plikami ZIP
-SUBJECT="Dane dostępowe"        # Temat maila
-BODY="Witaj,\n\nW załączniku znajdziesz zaszyfrowany plik z Twoimi danymi dostępowymi.\n\nPozdrawiam"
+# Funkcja logowania dla debug
+debug_log() {
+    if [ $DEBUG -eq 1 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$DEBUG_FILE"
+    fi
+}
+
+# Czyszczenie debug logu
+if [ $DEBUG -eq 1 ]; then
+    > "$DEBUG_FILE"
+    echo "🔍 TRYB DEBUG WŁĄCZONY - Logs zapisywane do: $DEBUG_FILE"
+    echo ""
+fi
+
+# --- KONFIGURACJA PLIKÓW --- 
+CONFIG_FILE="smtp_config.txt"
+EMAILS_FILE="emails.txt"
+ATTACHMENTS_DIR="pass_zips"
+# ----------------------------
+
+# Sprawdzenie czy plik konfiguracyjny istnieje
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "❌ BŁĄD: Plik $CONFIG_FILE nie istnieje!"
+    exit 1
+fi
+
+if [ ! -f "$EMAILS_FILE" ]; then
+    echo "❌ BŁĄD: Plik $EMAILS_FILE nie istnieje!"
+    exit 1
+fi
+
+# Wczytanie zmiennych z pliku
+source "$CONFIG_FILE"
+
+# Sprawdzenie czy wszystkie zmienne są uzupełnione
+if [ -z "$FROM_EMAIL" ] || [ -z "$FROM_PASSWORD" ] || [ -z "$SMTP_SERVER" ] || [ -z "$SMTP_PORT" ]; then
+    echo "❌ BŁĄD: Brakuje danych w pliku $CONFIG_FILE"
+    exit 1
+fi
+
+if [ "$FROM_PASSWORD" == "WSTAW_SWOJE_HASLO" ]; then
+    echo "❌ BŁĄD: Zmień hasło w pliku $CONFIG_FILE!"
+    exit 1
+fi
 
 # Sprawdzenie czy folder z załącznikami istnieje
 if [ ! -d "$ATTACHMENTS_DIR" ]; then
@@ -18,22 +61,87 @@ if [ ! -d "$ATTACHMENTS_DIR" ]; then
     exit 1
 fi
 
-# Sprawdzenie czy plik ze zmienną hasła jest poprawnie uzupełniony
-if [ "$FROM_PASSWORD" == "TUTAJ_WSTAW_SWOJE_HASLO" ]; then
-    echo "❌ BŁĄD: Zmień hasło w zmiennej FROM_PASSWORD!"
-    echo "Linia 5: FROM_PASSWORD=\"TUTAJ_WSTAW_SWOJE_HASLO\""
+# --- TEST LOGOWANIA ---
+echo "🔐 Testuję logowanie do SMTP..."
+TEST_MAIL="/tmp/test_mail_$RANDOM.txt"
+
+{
+    echo "From: $FROM_EMAIL"
+    echo "To: $FROM_EMAIL"
+    echo "Subject: TEST"
+    echo ""
+    echo "Test"
+} > "$TEST_MAIL"
+
+TEST_OUTPUT=$(curl --url "smtp://$SMTP_SERVER:$SMTP_PORT" \
+    --ssl-reqd \
+    --mail-from "$FROM_EMAIL" \
+    --mail-rcpt "$FROM_EMAIL" \
+    --user "$FROM_EMAIL:$FROM_PASSWORD" \
+    --upload-file "$TEST_MAIL" \
+    2>&1)
+
+TEST_EXIT_CODE=$?
+rm "$TEST_MAIL"
+
+if [ $TEST_EXIT_CODE -ne 0 ]; then
+    echo "❌ BŁĄD: Nie udało się zalogować do SMTP!"
+    echo ""
+    echo "Detale błędu:"
+    echo "$TEST_OUTPUT"
+    echo ""
+    echo "Sprawdź:"
+    echo "  - Email: $FROM_EMAIL"
+    echo "  - Hasło: (zmienione?)"
+    echo "  - SMTP Server: $SMTP_SERVER"
+    echo "  - Port: $SMTP_PORT"
     exit 1
 fi
 
-# Iteracja po każdym wierszu z listą maili
-while read -r haslo_maila email_adres; do
+echo "✓ Logowanie poprawne!"
+echo ""
+
+# --- LICZNIKI ---
+SENT=0
+FAILED=0
+SKIPPED=0
+
+# Debugowanie - pokaż ile linii ma plik
+EMAIL_COUNT=$(grep -c . "$EMAILS_FILE" 2>/dev/null || echo 0)
+debug_log "Plik $EMAILS_FILE ma $EMAIL_COUNT linii"
+echo "📋 Przetwarzam plik: $EMAILS_FILE ($EMAIL_COUNT linii)"
+echo ""
+
+# Konwersja CRLF do LF (Windows to Unix) - kompatybilne rozwiązanie
+tr -d '\r' < "$EMAILS_FILE" > "${EMAILS_FILE}.tmp" 2>/dev/null && mv "${EMAILS_FILE}.tmp" "$EMAILS_FILE" 2>/dev/null || true
+debug_log "Konwersja linii zakończona"
+
+# Iteracja po każdym emailu z pliku emails.txt
+debug_log "Otwieram plik do czytania: $EMAILS_FILE"
+while IFS= read -r email_adres || [ -n "$email_adres" ]; do
+    debug_log "Przeczytano linię (raw): '$email_adres'"
+    
     # Pomiń puste linie
-    [[ -z "$haslo_maila" || -z "$email_adres" ]] && continue
+    [[ -z "$email_adres" ]] && {
+        debug_log "Pusta linia - pominięto"
+        continue
+    }
+    
+    # Pomiń linie zaczynające się od #
+    [[ "$email_adres" == \#* ]] && {
+        debug_log "Pominięto komentarz: $email_adres"
+        continue
+    }
+    
+    # Usuń białe znaki na początku i końcu
+    email_adres=$(echo "$email_adres" | xargs)
+    debug_log "Czytam email z pliku: '$email_adres'"
     
     # Wyodrębnij nazwę użytkownika (część przed @)
     if [[ "$email_adres" == *"@"* ]]; then
         nazwa_uzytkownika="${email_adres%%@*}"
     else
+        # Jeśli nie ma @, użyj całego emaila jako nazwy
         nazwa_uzytkownika="$email_adres"
     fi
     
@@ -53,7 +161,8 @@ while read -r haslo_maila email_adres; do
     
     # Sprawdzenie czy plik ZIP istnieje
     if [ ! -f "$ZIP_FILE" ]; then
-        echo "⚠️  BRAK PLIKU: $ZIP_FILE dla adresu $email_adres"
+        echo "⚠️  POMINIĘTO: Brak pliku $ZIP_FILE dla $email_adres"
+        ((SKIPPED++))
         continue
     fi
     
@@ -64,6 +173,10 @@ while read -r haslo_maila email_adres; do
     
     # Utworzenie tymczasowego pliku maila
     MAIL_FILE="/tmp/mail_$RANDOM.txt"
+    
+    debug_log "Plik ZIP: $ZIP_FILE"
+    debug_log "Rozmiar ZIP: $(stat -f%z "$ZIP_FILE" 2>/dev/null || stat -c%s "$ZIP_FILE" 2>/dev/null) bajtów"
+    debug_log "Email docelowy: $email_adres"
     
     {
         echo "From: $FROM_EMAIL"
@@ -90,25 +203,65 @@ while read -r haslo_maila email_adres; do
     } > "$MAIL_FILE"
     
     # Wysłanie maila za pomocą curl
-    curl --url "smtp://$SMTP_SERVER:$SMTP_PORT" \
+    SEND_OUTPUT=$(curl --url "smtp://$SMTP_SERVER:$SMTP_PORT" \
         --ssl-reqd \
         --mail-from "$FROM_EMAIL" \
         --mail-rcpt "$email_adres" \
         --user "$FROM_EMAIL:$FROM_PASSWORD" \
         --upload-file "$MAIL_FILE" \
-        2>/dev/null
+        --verbose \
+        2>&1)
     
-    if [ $? -eq 0 ]; then
+    SEND_EXIT_CODE=$?
+    
+    # Logowanie w debug
+    if [ $DEBUG -eq 1 ]; then
+        debug_log "=== EMAIL: $email_adres ==="
+        debug_log "Kod wyjścia curl: $SEND_EXIT_CODE"
+        debug_log "Output serwera:"
+        debug_log "$SEND_OUTPUT"
+        debug_log "=========================="
+    fi
+    
+    # Sprawdzenie czy odpowiedź zawiera kod sukcesu SMTP (250)
+    # Kod 250 oznacza że serwer zaakceptował email
+    if [ $SEND_EXIT_CODE -eq 0 ] && echo "$SEND_OUTPUT" | grep -q "250 "; then
         echo "✓ Email wysłany pomyślnie do $email_adres"
+        ((SENT++))
     else
         echo "❌ BŁĄD przy wysyłaniu maila do $email_adres"
+        echo "   Kod wyjścia curl: $SEND_EXIT_CODE"
+        
+        # Wyodrębnienie kodu odpowiedzi SMTP z verbose output
+        SMTP_CODE=$(echo "$SEND_OUTPUT" | grep -oP '^< \d{3}' | tail -1 | grep -oP '\d{3}')
+        if [ -n "$SMTP_CODE" ]; then
+            echo "   Kod SMTP: $SMTP_CODE"
+            case $SMTP_CODE in
+                550) echo "   Przyczyna: Recipient rejected - możliwy błędny adres email" ;;
+                451) echo "   Przyczyna: Service unavailable - spróbuj ponownie" ;;
+                452) echo "   Przyczyna: Insufficient storage - za dużo wiadomości" ;;
+                535) echo "   Przyczyna: Authentication failed - błędne hasło/email" ;;
+                *) echo "   Pełny błąd: $(echo "$SEND_OUTPUT" | grep -oP '^\< .*' | head -5)" ;;
+            esac
+        fi
+        
+        ((FAILED++))
     fi
     
     # Usunięcie tymczasowego pliku
     rm "$MAIL_FILE"
     
-done < "$INPUT_FILE"
+done < "$EMAILS_FILE"
 
 echo ""
 echo "------------------------------------------"
-echo "✓ GOTOWE! Maile zostały wysłane."
+echo "📊 PODSUMOWANIE:"
+echo "   ✓ Wysłane:  $SENT"
+echo "   ❌ Błędy:   $FAILED"
+echo "   ⚠️  Pominięte: $SKIPPED"
+echo "------------------------------------------"
+
+if [ $DEBUG -eq 1 ]; then
+    echo ""
+    echo "📄 Pełny log debugowania: $DEBUG_FILE"
+fi

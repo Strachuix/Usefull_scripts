@@ -2,5 +2,7 @@
 /pass_zips/*
 # But do not ignore the directory itself
 !/pass_zips/
-# Ignore file lista.txt
-/lista.txt
+# Ignore .txt files
+/*.txt
+#Ignore logs
+/*.log

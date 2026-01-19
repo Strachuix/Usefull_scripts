@@ -84,3 +84,70 @@ Skrypt sprawdza:
 - Czy program 7z jest zainstalowany
 - Czy plik `lista.txt` istnieje
 - Pomija puste linie w pliku wejściowym
+
+---
+
+# Wysyłanie maili z załącznikami (send_emails.sh)
+
+Skrypt `send_emails.sh` automatycznie wysyła zaszyfrowane pliki ZIP na adresy email z pliku `emails.txt`.
+
+## Jak to działa
+
+1. **Czyta maile** z pliku `emails.txt`
+2. **Wyodrębnij nazwę użytkownika** (część przed `@`)
+3. **Sprawdza** czy istnieje plik ZIP o pasującej nazwie w folderze `pass_zips`
+4. **Wysyła email** z załącznikiem ZIP (jeśli plik istnieje)
+5. **Pomija** emaile bez odpowiadającego pliku ZIP
+
+## Konfiguracja
+
+### 1. Edytuj plik `smtp_config.txt`
+
+```bash
+FROM_EMAIL="example@email.pl"
+FROM_PASSWORD="password"    # ⚠️ Zmień na swoje hasło
+SMTP_SERVER="smtp.example.com"
+SMTP_PORT="587"
+```
+
+### 2. Edytuj plik `emails.txt`
+
+Lista maili, na które mają być wysłane wiadomości (jeden email per linię):
+
+```
+example@email.com
+user@ex.pl
+```
+
+### 3. Tekst wiadomości
+
+Edytuj zmienną `BODY` na górze pliku `send_emails.sh`:
+
+```bash
+BODY="Customowa wiadomość"
+```
+
+## Uruchomienie
+
+```bash
+chmod +x send_emails.sh
+./send_emails.sh
+```
+
+## Warunki wysłania
+
+Email **zostanie wysłany TYLKO jeśli**:
+- Email znajduje się w pliku `emails.txt`
+- Istnieje plik ZIP: `pass_zips/NAZWA_UZYTKOWNIKA.zip`
+- NAZWA_UZYTKOWNIKA = część emaila przed `@`
+
+**Przykład:**
+- Email: `example@email.pl` → szuka pliku `pass_zips/example.zip`
+- Email: `user@ex.pl` → szuka pliku `pass_zips/user.zip`
+
+Jeśli plik ZIP nie istnieje, email jest **pomijany** (zostaje wyświetlone ostrzeżenie).
+
+## Wymagania
+
+- `curl` - do wysyłania maili via SMTP
+- Dostęp do SMTP serwera z włączonym logowaniem
