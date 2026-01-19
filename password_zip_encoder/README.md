@@ -18,7 +18,10 @@ Przed uruchomieniem skryptu edytuj następujące zmienne na początku pliku:
 ```bash
 INPUT_FILE="lista.txt"      # Nazwa pliku ze źródłowymi danymi
 ZIP_PASSWORD="TwojeHaslo"   # Hasło chroniące wszystkie pliki ZIP
+OUTPUT_DIR="pass_zips"      # Folder, gdzie będą tworzone pliki ZIP
 ```
+
+Folder `pass_zips` **zostanie automatycznie utworzony**, jeśli nie istnieje.
 
 ## Format pliku wejściowego
 
@@ -49,21 +52,23 @@ chmod +x generator.sh
 ./generator.sh
 ```
 
+Wymagany Bash i 7-zip (`sudo apt install p7zip-full`)
+
 ## Rezultat
 
-Dla każdego wiersza z pliku `lista.txt` zostaną utworzone pliki ZIP w katalogu, gdzie uruchomiono skrypt.
+Dla każdego wiersza z pliku `lista.txt` zostaną utworzone pliki ZIP w folderze `pass_zips`.
 
 ### Nazewnictwo plików
 
-Pliki ZIP otrzymują nazwy bezpośrednio z drugiej kolumny pliku `lista.txt`:
+Pliki ZIP otrzymują nazwy bezpośrednio z drugiej kolumny pliku `lista.txt` (bez części mailowej):
 
 ```
-nazwa_użytkownika.zip
+pass_zips/nazwa_użytkownika.zip
 ```
 
 **Przykład:**
-- Z wiersza: `SecurePass123 user_john` → `user_john.zip`
-- Z wiersza: `MyPassword456 user_anna` → `user_anna.zip`
+- Z wiersza: `SecurePass123 user@email.pl` → `pass_zips/user.zip`
+- Z wiersza: `MyPassword456 admin_robert` → `pass_zips/admin_robert.zip`
 
 Każde archiwum zawiera jeden plik tekstowy z hasłem i jest chronione hasłem określonym w zmiennej `ZIP_PASSWORD`.
 
