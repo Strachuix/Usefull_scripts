@@ -1,0 +1,5 @@
+SecurePass123 user_john
+MyPassword456 user_anna
+StrongPass789 admin_robert
+ComplexP@ss2024 editor_maria
+NewPassword001 viewer_adam
