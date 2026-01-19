@@ -2,7 +2,7 @@
 
 # --- KONFIGURACJA ---
 INPUT_FILE="lista.txt"      # Nazwa Twojego pliku wejściowego
-ZIP_PASSWORD="TwojeHaslo"   # Hasło, którym będą zabezpieczone wszystkie ZIPy
+ZIP_PASSWORD="jAr3x!"   # Hasło, którym będą zabezpieczone wszystkie ZIPy
 OUTPUT_DIR="pass_zips"      # Folder, gdzie będą tworzone pliki ZIP
 # --------------------
 
@@ -80,10 +80,10 @@ while read -r haslo_maila nazwa_usera; do
     # 1. Stwórz tymczasowy plik .txt z hasłem
     echo "$haslo_maila" > "./$OUTPUT_DIR/$nazwa_pliku.txt"
 
-    # 2. Utwórz zaszyfrowany ZIP (używając AES-256)
-    # -p: hasło, -mem=AES256: silne szyfrowanie, -y: potwierdzaj wszystko
+    # 2. Utwórz zaszyfrowany ZIP (używając ZipCrypto)
+    # -p: hasło, -mem=ZipCrypto: szyfrowanie ZipCrypto (kompatybilne ze wszystkimi systemami)
     # -- oznacza koniec flag, wszystko po tym to nazwy plików
-    "$COMMAND_7Z" a -p"$ZIP_PASSWORD" -mem=AES256 -- "./$OUTPUT_DIR/$nazwa_pliku.zip" "./$OUTPUT_DIR/$nazwa_pliku.txt" > /dev/null
+    "$COMMAND_7Z" a -p"$ZIP_PASSWORD" -mem=ZipCrypto -- "./$OUTPUT_DIR/$nazwa_pliku.zip" "./$OUTPUT_DIR/$nazwa_pliku.txt" > /dev/null
 
     # 3. Usuń plik .txt, zostawiając tylko ZIP
     rm "./$OUTPUT_DIR/$nazwa_pliku.txt"
